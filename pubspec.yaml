@@ -1,0 +1,50 @@
+name: do_zvonka
+description: "до звонка - приложение для отслеживания времени до конца урока/перемены"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.14.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  shared_preferences: ^2.2.2
+  home_widget: ^0.1.6
+  flutter_local_notifications: ^17.2.2
+  timezone: ^0.9.2
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/fonts/
+
+  fonts:
+    - family: Unbounded
+      fonts:
+        - asset: assets/fonts/Unbounded.ttf
+          weight: 400
+        - asset: assets/fonts/Unbounded.ttf
+          weight: 500
+        - asset: assets/fonts/Unbounded.ttf
+          weight: 600
+        - asset: assets/fonts/Unbounded.ttf
+          weight: 700
+    - family: Onest
+      fonts:
+        - asset: assets/fonts/Onest.ttf
+          weight: 400
+        - asset: assets/fonts/Onest.ttf
+          weight: 500
+        - asset: assets/fonts/Onest.ttf
+          weight: 600
+        - asset: assets/fonts/Onest.ttf
+          weight: 700
