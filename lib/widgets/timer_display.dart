@@ -32,7 +32,7 @@ class _TimerDisplayState extends State<TimerDisplay>
       duration: const Duration(seconds: 2),
       vsync: this,
     )..repeat(reverse: true);
-    _pulseAnimation = Tween<double>(begin: 0.95, end: 1.0).animate(
+    _pulseAnimation = Tween<double>(begin: 0.98, end: 1.0).animate(
       CurvedAnimation(parent: _pulseController, curve: Curves.easeInOut),
     );
   }
@@ -54,137 +54,139 @@ class _TimerDisplayState extends State<TimerDisplay>
     final timerColor = _getTimerColor();
     final bgGradient = _getBackgroundGradient();
 
-    return Card(
-      elevation: 0,
-      color: AppTheme.cardColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-        side: BorderSide(color: AppTheme.dividerColor),
-      ),
-      child: AnimatedBuilder(
-        animation: _pulseAnimation,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: isFinished ? 1.0 : _pulseAnimation.value,
-            child: Container(
-              padding: const EdgeInsets.all(28),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-                gradient: bgGradient,
-                border: Border.all(
-                  color: timerColor.withValues(alpha: isFinished ? 0.2 : 0.4),
-                  width: 1,
+    return Semantics(
+      label: 'таймер до звонка',
+      value: isFinished ? 'время вышло' : '${_formatTime(widget.scheduleInfo.remainingSeconds)} осталось',
+      child: Card(
+        elevation: 0,
+        color: AppTheme.cardColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(color: AppTheme.dividerColor),
+        ),
+        child: AnimatedBuilder(
+          animation: _pulseAnimation,
+          builder: (context, child) {
+            return Transform.scale(
+              scale: isFinished ? 1.0 : _pulseAnimation.value,
+              child: Container(
+                padding: const EdgeInsets.all(28),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  gradient: bgGradient,
+                  border: Border.all(
+                    color: timerColor.withValues(alpha: isFinished ? 0.2 : 0.4),
+                    width: 1,
+                  ),
                 ),
-              ),
-              child: Column(
-                children: [
-                  // Period type label
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: timerColor,
-                      borderRadius: BorderRadius.circular(20),
-                      boxShadow: [
-                        BoxShadow(
-                          color: timerColor.withValues(alpha: 0.3),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                child: Column(
+                  children: [
+                    // Period type label
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: timerColor,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: timerColor.withValues(alpha: 0.3),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(
+                        widget.scheduleInfo.periodTypeLabel,
+                        style: AppTheme.onestStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: widget.scheduleInfo.isBigBreak ? Colors.black : Colors.white,
+                        ),
+                      ),
+                    ),
+
+                    const SizedBox(height: 28),
+
+                    // Circular timer using CircularProgressIndicator (simpler, no semantic issues)
+                    Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 220,
+                          height: 220,
+                          child: CircularProgressIndicator(
+                            value: isFinished ? 1.0 : progress,
+                            strokeWidth: 10,
+                            backgroundColor: Colors.white.withValues(alpha: 0.15),
+                            valueColor: AlwaysStoppedAnimation<Color>(timerColor),
+                          ),
+                        ),
+                        Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              isFinished ? '00:00' : _formatTime(widget.scheduleInfo.remainingSeconds),
+                              style: AppTheme.unboundedStyle(
+                                fontSize: 64,
+                                fontWeight: FontWeight.w700,
+                                color: AppTheme.textPrimary,
+                                letterSpacing: 2,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              isFinished ? _getFinishedText() : 'осталось до звонка',
+                              style: AppTheme.onestStyle(
+                                fontSize: 15,
+                                color: AppTheme.textSecondary,
+                                fontWeight: FontWeight.w400,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    child: Text(
-                      widget.scheduleInfo.periodTypeLabel,
-                      style: AppTheme.onestStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: widget.scheduleInfo.isBigBreak ? Colors.black : Colors.white,
-                      ),
-                    ),
-                  ),
 
-                  const SizedBox(height: 28),
+                    const SizedBox(height: 28),
 
-                  // Circular timer
-                  Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      SizedBox(
-                        width: 220,
-                        height: 220,
-                        child: CustomPaint(
-                          painter: _TimerPainter(
-                            progress: isFinished ? 1.0 : progress,
-                            color: timerColor,
-                            bgColor: Colors.white.withValues(alpha: 0.15),
-                            strokeWidth: 10,
-                          ),
-                        ),
+                    // Period end time
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      Column(
+                      child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Text(
-                            isFinished ? '00:00' : _formatTime(widget.scheduleInfo.remainingSeconds),
-                            style: AppTheme.unboundedStyle(
-                              fontSize: 64,
-                              fontWeight: FontWeight.w700,
-                              color: AppTheme.textPrimary,
-                              letterSpacing: 2,
-                            ),
+                          Icon(
+                            Icons.flag_rounded,
+                            size: 18,
+                            color: AppTheme.textSecondary,
                           ),
-                          const SizedBox(height: 8),
+                          const SizedBox(width: 8),
                           Text(
-                            isFinished ? _getFinishedText() : 'осталось до звонка',
+                            'заканчивается в ${ScheduleService.formatTime(TimeOfDay.fromDateTime(widget.scheduleInfo.periodEndTime))}',
                             style: AppTheme.onestStyle(
                               fontSize: 15,
+                              fontWeight: FontWeight.w500,
                               color: AppTheme.textSecondary,
-                              fontWeight: FontWeight.w400,
                             ),
                           ),
                         ],
                       ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 28),
-
-                  // Period end time
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.flag_rounded,
-                          size: 18,
-                          color: AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'заканчивается в ${ScheduleService.formatTime(TimeOfDay.fromDateTime(widget.scheduleInfo.periodEndTime))}',
-                          style: AppTheme.onestStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: AppTheme.textSecondary,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
 
-                  const SizedBox(height: 16),
+                    const SizedBox(height: 16),
 
-                  // Progress bar
-                  _buildProgressBar(progress, timerColor),
-                ],
+                    // Progress bar
+                    _buildProgressBar(progress, timerColor),
+                  ],
+                ),
               ),
-            ),
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -312,59 +314,5 @@ class _TimerDisplayState extends State<TimerDisplay>
     if (widget.scheduleInfo.isBreak) return 'перемена закончилась';
     if (widget.scheduleInfo.currentLessonNumber == 0) return 'занятия начинаются';
     return 'урок закончился';
-  }
-}
-
-class _TimerPainter extends CustomPainter {
-  final double progress;
-  final Color color;
-  final Color bgColor;
-  final double strokeWidth;
-
-  _TimerPainter({
-    required this.progress,
-    required this.color,
-    required this.bgColor,
-    required this.strokeWidth,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = (size.width - strokeWidth) / 2;
-
-    // Background circle
-    final bgPaint = Paint()
-      ..color = bgColor
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    canvas.drawCircle(center, radius, bgPaint);
-
-    // Progress arc
-    final progressPaint = Paint()
-      ..shader = SweepGradient(
-        startAngle: -3.14159 / 2,
-        endAngle: 3 * 3.14159 / 2,
-        colors: [color, color.withValues(alpha: 0.8)],
-      ).createShader(Rect.fromCircle(center: center, radius: radius))
-      ..strokeWidth = strokeWidth
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-
-    final sweepAngle = 2 * 3.14159 * progress;
-    canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius),
-      -3.14159 / 2,
-      sweepAngle,
-      false,
-      progressPaint,
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return oldDelegate is _TimerPainter && oldDelegate.progress != progress;
   }
 }

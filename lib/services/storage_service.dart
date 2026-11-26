@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:home_widget/home_widget.dart';
@@ -12,15 +13,20 @@ class StorageService {
   StorageService._internal();
 
   SharedPreferences? _prefs;
+  bool _widgetInitialized = false;
 
   Future<void> init() async {
     _prefs = await SharedPreferences.getInstance();
+    // Mark widget as initialized (home_widget doesn't have init method)
+    _widgetInitialized = true;
   }
 
   Future<void> saveSettings(AppSettings settings) async {
+    // Save to SharedPreferences first (fast, always works)
     await _prefs?.setString(_settingsKey, jsonEncode(settings.toJson()));
-    // Update widget data
-    await _updateWidgetData(settings);
+    
+    // Update widget in background, don't await
+    _updateWidgetDataAsync(settings);
   }
 
   Future<AppSettings> loadSettings() async {
@@ -36,7 +42,20 @@ class StorageService {
     return AppSettings.defaultSettings();
   }
 
+  void _updateWidgetDataAsync(AppSettings settings) {
+    // Fire and forget - don't block the UI
+    Future.microtask(() async {
+      try {
+        await _updateWidgetData(settings);
+      } catch (e) {
+        // Widget update failed, but that's non-critical
+      }
+    });
+  }
+
   Future<void> _updateWidgetData(AppSettings settings) async {
+    if (!_widgetInitialized) return;
+
     final now = DateTime.now();
     final scheduleInfo = ScheduleService.calculateCurrentPeriod(settings, now);
     final remainingSeconds = scheduleInfo.remainingSeconds;
@@ -57,12 +76,16 @@ class StorageService {
     await HomeWidget.saveWidgetData<int>('remaining_seconds', remainingSeconds);
     await HomeWidget.saveWidgetData<String>('last_update', now.toIso8601String());
 
-    // Request widget update
-    await HomeWidget.updateWidget(
-      name: 'DoZvonkaWidget',
-      iOSName: 'DoZvonkaWidget',
-      androidName: 'DoZvonkaWidget',
-    );
+    // Request widget update with timeout
+    try {
+      await HomeWidget.updateWidget(
+        name: 'DoZvonkaWidget',
+        iOSName: 'DoZvonkaWidget',
+        androidName: 'DoZvonkaWidget',
+      ).timeout(const Duration(seconds: 3));
+    } on TimeoutException {
+      // Widget update timed out, non-critical
+    }
   }
 
   String _formatRemaining(int seconds) {

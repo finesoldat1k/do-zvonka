@@ -26,6 +26,9 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   List<PeriodPreview> _nextPeriods = [];
   Timer? _timer;
   DateTime _lastUpdate = DateTime.now();
+  bool _isLoading = true;
+  String? _loadError;
+  int _loadAttempts = 0;
 
   @override
   void initState() {
@@ -51,29 +54,56 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   }
 
   Future<void> _loadSettings() async {
-    final settings = await StorageService().loadSettings();
-    if (mounted) {
-      setState(() => _settings = settings);
-      _updateSchedule();
+    _loadAttempts++;
+    try {
+      final settings = await StorageService().loadSettings();
+      if (mounted) {
+        setState(() {
+          _settings = settings;
+          _isLoading = false;
+          _loadError = null;
+        });
+        
+        if (!settings.isConfigured && _loadAttempts == 1) {
+          await Future.delayed(const Duration(milliseconds: 300));
+          if (mounted) {
+            final retrySettings = await StorageService().loadSettings();
+            setState(() => _settings = retrySettings);
+          }
+        }
+        
+        _updateSchedule();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _loadError = 'Ошибка загрузки: $e';
+        });
+      }
     }
   }
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) _updateSchedule();
+      if (mounted && !_isLoading) _updateSchedule();
     });
   }
 
   void _updateSchedule() {
+    if (!_settings.isConfigured) return;
+    
     final now = DateTime.now();
     final newInfo = ScheduleService.calculateCurrentPeriod(_settings, now);
     final newNextPeriods = ScheduleService.getNextPeriods(_settings, now, 4);
     
-    setState(() {
-      _scheduleInfo = newInfo;
-      _nextPeriods = newNextPeriods;
-      _lastUpdate = now;
-    });
+    if (mounted) {
+      setState(() {
+        _scheduleInfo = newInfo;
+        _nextPeriods = newNextPeriods;
+        _lastUpdate = now;
+      });
+    }
 
     if (now.difference(_lastUpdate).inSeconds >= 30) {
       _updateWidget();
@@ -97,14 +127,20 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     }
   }
 
+  void _forceOpenSettings() {
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (context) => SettingsScreen(initialSettings: _settings, isFirstLaunch: true),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.backgroundColor,
       appBar: _buildAppBar(),
-      body: SafeArea(
-        child: _settings.isConfigured ? _buildMainContent() : _buildNotConfigured(),
-      ),
+      body: _buildBody(),
     );
   }
 
@@ -126,7 +162,124 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildNotConfigured() {
+  Widget _buildBody() {
+    if (_isLoading) {
+      return _buildLoadingScreen();
+    }
+
+    if (_loadError != null) {
+      return _buildErrorScreen();
+    }
+
+    if (!_settings.isConfigured) {
+      return _buildNotConfiguredScreen();
+    }
+
+    return SafeArea(
+      child: RefreshIndicator(
+        onRefresh: () async => _updateSchedule(),
+        color: AppTheme.primaryColor,
+        backgroundColor: AppTheme.surfaceColor,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+          child: Column(
+            children: [
+              TimerDisplay(
+                scheduleInfo: _scheduleInfo,
+                settings: _settings,
+                lastUpdate: _lastUpdate,
+              ),
+              const SizedBox(height: 16),
+              _buildCurrentStatusCard(),
+              const SizedBox(height: 16),
+              _buildScheduleInfoCard(),
+              const SizedBox(height: 16),
+              _buildNextPeriodsCard(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(Icons.schedule_outlined, size: 40, color: AppTheme.primaryColor),
+          ),
+          const SizedBox(height: 24),
+          const CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          Text(
+            'загрузка расписания...',
+            style: AppTheme.onestStyle(fontSize: 15, color: AppTheme.textSecondary),
+          ),
+          if (_loadAttempts > 1) ...[
+            const SizedBox(height: 12),
+            Text(
+              'попытка $_loadAttempts',
+              style: AppTheme.onestStyle(fontSize: 12, color: AppTheme.textDisabled),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorScreen() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline_rounded, size: 60, color: AppTheme.errorColor),
+            const SizedBox(height: 20),
+            Text(
+              'ошибка загрузки',
+              style: AppTheme.unboundedStyle(fontSize: 22, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _loadError!,
+              style: AppTheme.onestStyle(fontSize: 15, color: AppTheme.textSecondary),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: _loadSettings,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('повторить'),
+              style: ElevatedButton.styleFrom(
+                fixedSize: const Size(200, 52),
+                backgroundColor: AppTheme.primaryColor,
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextButton(
+              onPressed: _forceOpenSettings,
+              child: Text('настроить заново', style: AppTheme.onestStyle(fontSize: 14, color: AppTheme.primaryColor)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNotConfiguredScreen() {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -156,7 +309,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             ),
             const SizedBox(height: 36),
             ElevatedButton.icon(
-              onPressed: _openSettings,
+              onPressed: _forceOpenSettings,
               icon: const Icon(Icons.settings_outlined),
               label: const Text('настроить расписание'),
               style: ElevatedButton.styleFrom(
@@ -168,33 +321,6 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
                 elevation: 0,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMainContent() {
-    return RefreshIndicator(
-      onRefresh: () async => _updateSchedule(),
-      color: AppTheme.primaryColor,
-      backgroundColor: AppTheme.surfaceColor,
-      child: SingleChildScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-        child: Column(
-          children: [
-            TimerDisplay(
-              scheduleInfo: _scheduleInfo,
-              settings: _settings,
-              lastUpdate: _lastUpdate,
-            ),
-            const SizedBox(height: 16),
-            _buildCurrentStatusCard(),
-            const SizedBox(height: 16),
-            _buildScheduleInfoCard(),
-            const SizedBox(height: 16),
-            _buildNextPeriodsCard(),
           ],
         ),
       ),
@@ -494,7 +620,7 @@ class _TimelineItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final type = period['type'] as String;
-    final lessonNumber = period['lessonNumber'] as int;
+    final lessonNum = period['lessonNumber'] as int;
     final periodStart = period['startMinutes'] as int;
     final periodEnd = period['endMinutes'] as int;
     final bigBreak = period['bigBreak'] as BigBreak?;
@@ -507,17 +633,17 @@ class _TimelineItem extends StatelessWidget {
     if (type == 'lesson') {
       itemColor = AppTheme.lessonColor;
       itemIcon = Icons.menu_book_outlined;
-      title = 'урок $lessonNumber';
+      title = 'урок $lessonNum';
       subtitle = '${periodEnd - periodStart} мин';
     } else if (type == 'bigBreak') {
       itemColor = AppTheme.bigBreakColor;
       itemIcon = Icons.restaurant_rounded;
       title = bigBreak?.name ?? 'большая перемена';
-      subtitle = 'после $lessonNumber урока · ${bigBreak?.durationMinutes ?? 0} мин';
+      subtitle = 'после $lessonNum урока · ${bigBreak?.durationMinutes ?? 0} мин';
     } else {
       itemColor = AppTheme.accentColor;
       itemIcon = Icons.coffee_outlined;
-      title = 'перемена $lessonNumber';
+      title = 'перемена $lessonNum';
       subtitle = '${periodEnd - periodStart} мин';
     }
 
@@ -638,9 +764,9 @@ class _TimelineItem extends StatelessWidget {
   }
 
   String _formatMinutes(int minutes) {
-    final h = (minutes ~/ 60).toString().padLeft(2, '0');
-    final m = (minutes % 60).toString().padLeft(2, '0');
-    return '$h:$m';
+    final hours = (minutes ~/ 60).toString().padLeft(2, '0');
+    final mins = (minutes % 60).toString().padLeft(2, '0');
+    return '$hours:$mins';
   }
 }
 

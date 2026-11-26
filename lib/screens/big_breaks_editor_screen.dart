@@ -91,24 +91,32 @@ class _BigBreaksEditorScreenState extends State<BigBreaksEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: const Text('большие перемены'),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.close_rounded),
-          onPressed: () => Navigator.pop(context, _bigBreaks),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            onPressed: _addBigBreak,
-            tooltip: 'добавить',
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop) {
+          Navigator.pop(context, _bigBreaks);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        appBar: AppBar(
+          title: const Text('большие перемены'),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.close_rounded),
+            onPressed: () => Navigator.pop(context, _bigBreaks),
           ),
-        ],
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.add_rounded),
+              onPressed: _addBigBreak,
+              tooltip: 'добавить',
+            ),
+          ],
+        ),
+        body: _buildBody(),
       ),
-      body: _buildBody(),
     );
   }
 
@@ -170,7 +178,7 @@ class _BigBreaksEditorScreenState extends State<BigBreaksEditorScreen> {
     return ListView.separated(
       padding: const EdgeInsets.all(16),
       itemCount: _bigBreaks.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 10),
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
         final bigBreak = _bigBreaks[index];
         return Dismissible(

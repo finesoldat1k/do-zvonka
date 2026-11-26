@@ -115,14 +115,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.backgroundColor,
-      appBar: AppBar(
-        title: Text(widget.isFirstLaunch ? 'настройка' : 'настройки'),
-        automaticallyImplyLeading: !widget.isFirstLaunch,
-        elevation: 0,
-      ),
-      body: SafeArea(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (!didPop && !widget.isFirstLaunch) {
+          final settings = AppSettings(
+            startTime: _startTime,
+            lessonDurationMinutes: int.parse(_lessonDurationController.text),
+            breakDurationMinutes: int.parse(_breakDurationController.text),
+            lessonsPerDay: int.parse(_lessonsPerDayController.text),
+            bigBreaks: _bigBreaks,
+            isConfigured: true,
+          );
+          Navigator.pop(context, settings);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppTheme.backgroundColor,
+        appBar: AppBar(
+          title: Text(widget.isFirstLaunch ? 'настройка' : 'настройки'),
+          automaticallyImplyLeading: !widget.isFirstLaunch,
+          elevation: 0,
+        ),
+        body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
           child: Form(
@@ -150,6 +165,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -506,14 +522,14 @@ class _SettingsSection extends StatelessWidget {
   final String? subtitle;
   final IconData icon;
   final Widget child;
-  final Widget? trailing;
+  final Widget trailing;
 
   const _SettingsSection({
     required this.title,
     this.subtitle,
     required this.icon,
     required this.child,
-    this.trailing,
+    this.trailing = const SizedBox.shrink(),
   });
 
   @override
@@ -535,7 +551,7 @@ class _SettingsSection extends StatelessWidget {
                 ],
               ),
             ),
-            if (trailing != null) trailing!,
+            trailing,
           ],
         ),
         const SizedBox(height: 12),

@@ -12,16 +12,24 @@ void main() async {
   await StorageService().init();
 
   // Register background callback for widget updates
-  HomeWidget.registerBackgroundCallback(backgroundCallback);
+  try {
+    HomeWidget.registerBackgroundCallback(backgroundCallback);
+  } catch (_) {
+    // Expected on non-Android platforms
+  }
 
   runApp(const DoZvonkaApp());
 }
 
 // Background callback for widget updates
 Future<void> backgroundCallback(Uri? uri) async {
-  await StorageService().init();
-  final settings = await StorageService().loadSettings();
-  await StorageService().updateWidgetNow(settings);
+  try {
+    await StorageService().init();
+    final settings = await StorageService().loadSettings();
+    await StorageService().updateWidgetNow(settings);
+  } catch (_) {
+    // Non-critical failure
+  }
 }
 
 class DoZvonkaApp extends StatelessWidget {
